@@ -17,8 +17,9 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  sessions     Session[]
-  subscription Subscription?
+  sessions            Session[]
+  subscription        Subscription?
+  paymentTransactions PaymentTransaction[]
 }
 
 // ─────────────────────────────────────────────
@@ -114,19 +115,57 @@ model Subscription {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   status      SubscriptionStatus @default(TRIAL)
-  plan        String?            // "monthly" | "yearly"
+  plan        String?            // "free_trial" | "weekly" | "monthly" | "yearly"
   trialEndsAt DateTime           // when free trial access ends
   activatedAt DateTime?          // when paid subscription started
   expiresAt   DateTime?          // when paid subscription expires
+  cancelledAt DateTime?          // when user actively cancelled
+  cancelReason String?
+
+  paymentTransactions PaymentTransaction[]
 
   @@index([status])
   @@index([trialEndsAt])
+  @@index([expiresAt])
 }
 
 enum SubscriptionStatus {
-  TRIAL         // within trial window — full access
-  TRIAL_EXPIRED // trial over, not subscribed — limited + promo shown
+  TRIAL         // free-trial preview window, limited access
+  TRIAL_EXPIRED // trial over, not subscribed, limited access
   ACTIVE        // paying subscriber — full access
   EXPIRED       // paid plan lapsed
   CANCELLED
+}
+
+model PaymentTransaction {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  subscriptionId String?
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  sessionId String?
+  plan      String        // "weekly" | "monthly" | "yearly"
+  status    PaymentStatus @default(SUCCEEDED)
+  provider  String        @default("mock")
+
+  amountCents Int
+  currency    String @default("USD")
+  description String?
+
+  @@index([userId])
+  @@index([subscriptionId])
+  @@index([sessionId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum PaymentStatus {
+  SUCCEEDED
+  FAILED
+  REFUNDED
 }

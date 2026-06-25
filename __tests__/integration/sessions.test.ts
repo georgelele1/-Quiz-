@@ -80,6 +80,7 @@ describe('POST /api/sessions', () => {
     const req1 = makeRequest('POST', { clientId })
     const res1 = await createSession(req1)
     expect(res1.status).toBe(201)
+    sessionCookie = res1.headers.get('set-cookie')?.split(';')[0] ?? ''
 
     const req2 = makeRequest('POST', { clientId })
     const res2 = await createSession(req2)

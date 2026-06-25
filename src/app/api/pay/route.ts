@@ -19,6 +19,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { hasSessionAccess } from '@/lib/session-access'
 
+const PLAN_AMOUNTS_CENTS: Record<string, number> = {
+  weekly: 499,
+  monthly: 999,
+  yearly: 5988,
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
@@ -59,6 +65,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    const user = session.user
     const sub = session.user.subscription
     const now = new Date()
 
@@ -81,43 +88,64 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Activate / renew ──────────────────────────────────────────
+    const isFreeTrial = selectedPlan === 'free_trial'
     const isTrialActive = sub?.status === 'TRIAL' && sub.trialEndsAt && now < new Date(sub.trialEndsAt)
-    if (isTrialActive) {
+    if (isFreeTrial && isTrialActive) {
       return NextResponse.json({ success: true, sessionId, status: 'TRIAL', plan: sub!.plan, trialEndsAt: sub!.trialEndsAt, alreadyTrial: true })
     }
 
     const trialEndsAt = new Date(now)
     trialEndsAt.setDate(trialEndsAt.getDate() + 3)
-    const isFreeTrial = selectedPlan === 'free_trial'
     const expiresAt = new Date(now)
     if (selectedPlan === 'yearly') expiresAt.setFullYear(expiresAt.getFullYear() + 1)
     else if (selectedPlan === 'monthly') expiresAt.setMonth(expiresAt.getMonth() + 1)
     else expiresAt.setDate(expiresAt.getDate() + 7)
 
-    const [subscription] = await prisma.$transaction([
-      prisma.subscription.upsert({
-        where: { userId: session.user.id },
+    const subscription = await prisma.$transaction(async (tx) => {
+      const updatedSubscription = await tx.subscription.upsert({
+        where: { userId: user.id },
         update: {
           status: isFreeTrial ? 'TRIAL' : 'ACTIVE',
           plan: selectedPlan,
           trialEndsAt,
           activatedAt: isFreeTrial ? null : now,
           expiresAt: isFreeTrial ? null : expiresAt,
+          cancelledAt: null,
+          cancelReason: null,
         },
         create: {
-          userId: session.user.id,
+          userId: user.id,
           status: isFreeTrial ? 'TRIAL' : 'ACTIVE',
           plan: selectedPlan,
           trialEndsAt,
           ...(isFreeTrial ? {} : { activatedAt: now, expiresAt }),
         },
-      }),
+      })
+
+      if (!isFreeTrial) {
+        await tx.paymentTransaction.create({
+          data: {
+            userId: user.id,
+            subscriptionId: updatedSubscription.id,
+            sessionId,
+            plan: selectedPlan,
+            amountCents: PLAN_AMOUNTS_CENTS[selectedPlan] ?? PLAN_AMOUNTS_CENTS.monthly,
+            currency: 'USD',
+            provider: 'mock',
+            status: 'SUCCEEDED',
+            description: `Mock checkout for ${selectedPlan} subscription`,
+          },
+        })
+      }
+
       // Clear any scheduled data-deletion on all sessions for this user
-      prisma.session.updateMany({
-        where: { userId: session.user.id },
+      await tx.session.updateMany({
+        where: { userId: user.id },
         data: { expiresAt: null },
-      }),
-    ])
+      })
+
+      return updatedSubscription
+    })
 
     return NextResponse.json({
       success: true,

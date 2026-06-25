@@ -4,7 +4,7 @@ import { hasSessionAccess } from '@/lib/session-access'
 
 export async function POST(req: NextRequest) {
   try {
-    const { sessionId } = await req.json() as { sessionId?: string }
+    const { sessionId, reason } = await req.json() as { sessionId?: string; reason?: string }
     if (!sessionId) return NextResponse.json({ error: 'sessionId is required' }, { status: 400 })
 
     const session = await prisma.session.findUnique({
@@ -26,7 +26,11 @@ export async function POST(req: NextRequest) {
 
     await prisma.subscription.update({
       where: { userId: session.user.id },
-      data: { status: 'CANCELLED' },
+      data: {
+        status: 'CANCELLED',
+        cancelledAt: new Date(),
+        cancelReason: reason?.trim() || 'user_requested',
+      },
     })
     return NextResponse.json({ success: true, status: 'CANCELLED' })
   } catch (error) {

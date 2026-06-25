@@ -20,6 +20,7 @@ import { PUT as saveStep } from '@/app/api/sessions/[id]/steps/route'
 import { POST as calculate } from '@/app/api/sessions/[id]/calculate/route'
 import { GET as getResults } from '@/app/api/results/[sessionId]/route'
 import { POST as pay } from '@/app/api/pay/route'
+import { POST as cancelSubscription } from '@/app/api/subscription/cancel/route'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -170,6 +171,35 @@ describe('POST /api/pay', () => {
     expect(body.plan).toBe('monthly')
     expect(body.activatedAt).toBeDefined()
     expect(body.expiresAt).toBeDefined()
+  })
+
+  test('records a mock payment transaction for paid plans', async () => {
+    const id = await setupCompletedAccountSession()
+
+    await pay(makeRequest('POST', { sessionId: id, plan: 'weekly' }))
+    const session = await prisma.session.findUnique({ where: { id }, include: { user: true } })
+    const payment = await prisma.paymentTransaction.findFirst({
+      where: { userId: session!.userId!, sessionId: id },
+    })
+
+    expect(payment).toBeTruthy()
+    expect(payment!.plan).toBe('weekly')
+    expect(payment!.amountCents).toBe(499)
+    expect(payment!.status).toBe('SUCCEEDED')
+    expect(payment!.provider).toBe('mock')
+  })
+
+  test('cancels active subscription and stores cancellation metadata', async () => {
+    const id = await setupCompletedAccountSession()
+    await pay(makeRequest('POST', { sessionId: id, plan: 'monthly' }))
+
+    const res = await cancelSubscription(makeRequest('POST', { sessionId: id, reason: 'test_cancel' }))
+    expect(res.status).toBe(200)
+
+    const session = await prisma.session.findUnique({ where: { id }, include: { user: { include: { subscription: true } } } })
+    expect(session!.user!.subscription!.status).toBe('CANCELLED')
+    expect(session!.user!.subscription!.cancelledAt).toBeTruthy()
+    expect(session!.user!.subscription!.cancelReason).toBe('test_cancel')
   })
 
   test('yearly plan also works', async () => {

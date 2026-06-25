@@ -1,12 +1,12 @@
 /**
  * POST /api/sessions
- * Creates a new anonymous quiz session (no user yet — email collected at step 8).
+ * Creates a new anonymous quiz session (no user yet -- email collected at step 8).
  * Idempotent via clientId.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { createSessionAccessToken, setSessionAccessCookie } from '@/lib/session-access'
+import { createSessionAccessToken, setSessionAccessCookie, hasSessionAccess } from '@/lib/session-access'
 
 export async function POST(req: NextRequest) {
   try {
@@ -19,8 +19,14 @@ export async function POST(req: NextRequest) {
         include: { user: { include: { subscription: true } } },
       })
       if (existing) {
+        // Re-issue is only allowed if the caller already holds a valid cookie
+        // for this session. Without this check, anyone who guesses a session ID
+        // could hijack it by calling POST /api/sessions with that clientId.
+        if (!hasSessionAccess(req, existing.id, existing.accessTokenHash)) {
+          return NextResponse.json({ error: 'Session access denied' }, { status: 401 })
+        }
         // Issue a fresh token so the browser gets a valid auth cookie even if
-        // the original was lost (cleared storage, new device, etc.).
+        // the original was lost (e.g. page refresh on same device).
         const access = createSessionAccessToken()
         await prisma.session.update({
           where: { id: clientId },
