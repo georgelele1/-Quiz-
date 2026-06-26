@@ -156,6 +156,57 @@ npx prisma db push
 
 ---
 
+## CI/CD 自动测试
+
+项目已接入 GitHub Actions。配置文件位于：
+
+```text
+.github/workflows/ci.yml
+```
+
+触发条件：
+
+- push 到 `main`
+- push 到 `develop`
+- 向 `main` 发起 Pull Request
+
+CI 会自动执行：
+
+| 阶段 | 内容 |
+|---|---|
+| 安装依赖 | `npm ci` |
+| 生成 Prisma Client | `npx prisma generate` |
+| 类型检查 | `npm run typecheck` |
+| 单元测试 | `npm run test:unit -- --coverage` |
+| 生产构建 | `npm run build` |
+| 集成测试 | 启动 PostgreSQL service，执行 `npm run test:integration` |
+
+集成测试不会依赖 Render 数据库，而是在 GitHub Actions 中临时启动一个 PostgreSQL 容器：
+
+```text
+postgresql://postgres:postgres@localhost:5432/healthquiz_test
+```
+
+这样可以避免 CI 使用生产数据库，也能保证测试环境可重复。
+
+Vercel 负责部署。当代码 push 到连接的 GitHub 仓库后，Vercel 会自动触发构建和部署。也就是说：
+
+```text
+GitHub Actions = 自动测试
+Vercel = 自动部署
+```
+
+建议提交前本地先运行：
+
+```powershell
+npm run db:generate
+npm run typecheck
+npm run test:unit
+npm run build
+```
+
+---
+
 ## 问卷流程
 
 当前问卷共有 12 步：
@@ -423,6 +474,173 @@ node .\node_modules\jest\bin\jest.js validation.test.ts health-calculator.test.t
 | 视频是数据权限演示 | 视频资源可以继续扩展成真实 CDN 链接 |
 | 数据库依赖外部服务 | 本地集成测试需要 PostgreSQL 可访问 |
 | 医疗建议有限 | 当前仅用于健康计划演示，不替代医生建议 |
+
+---
+
+## 评分标准对应说明
+
+本项目按照“后端功底、DB 设计、逻辑闭环、测试与质量、AI 效率”几个方向进行实现和整理。
+
+### 1. 后端功底
+
+API 按业务资源拆分，而不是把所有逻辑堆在一个接口里：
+
+| 功能 | API |
+|---|---|
+| 创建问卷会话 | `POST /api/sessions` |
+| 获取会话进度 | `GET /api/sessions/:id` |
+| 保存单步问卷 | `PUT /api/sessions/:id/steps` |
+| 计算健康结果 | `POST /api/sessions/:id/calculate` |
+| 获取结果 | `GET /api/results/:sessionId` |
+| 获取训练计划 | `GET /api/plan/:sessionId` |
+| 模拟支付 | `POST /api/pay` |
+| 主动取消订阅 | `POST /api/subscription/cancel` |
+| 获取视频内容 | `GET /api/videos/:sessionId` |
+
+后端校验不是只依赖前端表单，而是在 API 层再次做白名单和边界校验：
+
+- 每一步问卷只允许保存当前步骤对应字段
+- 年龄、身高、体重、目标体重都有范围限制
+- enum 类型字段只允许预设值
+- 数组字段会校验是否为空、是否包含非法值
+- email 会做格式校验
+- BMI 异常区间会返回健康风险提示
+- session 访问依赖 HttpOnly cookie，不只依赖 URL 中的 sessionId
+
+这样可以防止用户绕过前端，直接向接口提交非法字段、非法数值或错误状态。
+
+### 2. DB 设计
+
+数据库结构按业务职责拆分：
+
+| 表 | 设计目的 |
+|---|---|
+| `Session` | 保存问卷会话、当前步骤、问卷答案、访问 token 和过期时间 |
+| `User` | 保存用户邮箱，为后续账户系统扩展预留 |
+| `Subscription` | 保存试用、付费、取消、过期等订阅状态 |
+| `HealthResult` | 保存 BMI、热量、宏量营养、目标周期和体重趋势等计算结果 |
+| `Video` | 保存视频内容、试看权限和订阅访问权限 |
+
+设计取舍：
+
+- 问卷答案使用 `quizData` JSON 保存，便于快速新增问卷步骤，不需要每次都改表结构。
+- 计算结果单独放入 `HealthResult`，避免原始输入和派生结果混在一起。
+- 订阅信息单独建表，方便后续接入 Stripe、Apple Pay 或更多会员方案。
+- 视频内容单独建表，方便扩展试看、订阅专享、分类和排序。
+- session 使用 token hash 做访问验证，避免只凭 sessionId 操作数据。
+
+订阅状态支持完整生命周期：
+
+```text
+TRIAL -> TRIAL_EXPIRED
+TRIAL -> ACTIVE
+ACTIVE -> CANCELLED
+ACTIVE -> EXPIRED
+CANCELLED -> EXPIRED
+EXPIRED -> ACTIVE
+```
+
+### 3. 逻辑闭环
+
+项目覆盖了从用户录入到内容解锁的完整流程：
+
+```text
+进入首页
+  ↓
+创建 Session，并写入 HttpOnly cookie
+  ↓
+用户逐步填写 12 步问卷
+  ↓
+每一步答案保存到数据库
+  ↓
+刷新或中断后可以恢复当前进度
+  ↓
+完成问卷后计算 BMI、热量、目标周期和基础状态
+  ↓
+先展示 BMI 和基础结果，不直接展示完整训练计划
+  ↓
+进入订阅/计划选择页面
+  ↓
+选择 Free trial、Weekly、Monthly 或 Yearly
+  ↓
+免费试用用户只能看 2 天训练计划预览
+  ↓
+付费用户解锁完整结果、7 天训练计划和完整视频内容
+  ↓
+用户可以主动取消订阅
+```
+
+异常路径也有考虑：
+
+- session 不存在时返回 404
+- cookie 不匹配时返回 403
+- 问卷未完成时不能计算结果
+- 重复计算不会重复创建结果
+- 并发保存步骤时通过 version 做冲突控制
+- 试用或订阅过期后自动降级访问权限
+- 免费试用不走支付确认，付费方案走 mock checkout
+
+### 4. 测试与质量
+
+项目包含单元测试和集成测试，不只覆盖 happy path。
+
+核心测试覆盖：
+
+- 问卷字段校验
+- enum 非法值校验
+- 数组字段校验
+- 边界数值校验
+- BMI/BMR/TDEE 计算
+- 不同目标下的热量调整
+- 目标周期和体重趋势计算
+- 问卷是否完整
+- session 创建、保存、计算流程
+- 免费用户、试用用户、付费用户的权限差异
+- 支付和重复支付路径
+
+常用验证命令：
+
+```powershell
+npm run test
+npx tsc --noEmit
+```
+
+当前核心单元测试可以一键运行。集成测试需要可连接的 PostgreSQL 数据库。
+
+项目也适合接入 CI，例如在 GitHub Actions 中执行：
+
+```text
+npm install
+npx prisma generate
+npx tsc --noEmit
+npm run test
+```
+
+### 5. AI 效率
+
+本项目开发过程中，AI 不是只用于一次性生成代码，而是作为工程协作工具参与多个阶段：
+
+- 拆解需求和用户流程
+- 设计数据库 schema
+- 生成 TypeScript 类型定义
+- 实现 API 路由
+- 实现 mock 支付和订阅权限
+- 补充免费试用、主动取消和视频权限
+- 生成和修正测试用例
+- 清理无用代码
+- 重命名 function/component，提高可读性
+- 整理 README 和部署说明
+
+同时对 AI 输出进行了人工校验和多轮修正，例如：
+
+- 修正免费试用不应该进入支付确认的问题
+- 修正试用用户只能看到 2 天计划的问题
+- 修正订阅过期后的权限判断
+- 增加主动取消订阅逻辑
+- 将 API 响应和 session 校验逻辑抽成公共 helper
+- 将英文注释和不清晰命名清理成更易维护的结构
+
+这体现的是“使用 AI 提高工程效率”，而不是简单复制粘贴 AI 代码。
 
 ---
 
