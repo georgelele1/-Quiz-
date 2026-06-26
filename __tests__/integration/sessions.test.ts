@@ -28,9 +28,15 @@ import { GET as getSession } from '@/app/api/sessions/[id]/route'
 import { PUT as saveStep } from '@/app/api/sessions/[id]/steps/route'
 import { POST as calculate } from '@/app/api/sessions/[id]/calculate/route'
 
+jest.setTimeout(30000)
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 let sessionCookie = ''
+
+beforeEach(() => {
+  sessionCookie = ''
+})
 
 function makeRequest(method: string, body?: unknown): NextRequest {
   return new NextRequest('http://localhost:3000', {

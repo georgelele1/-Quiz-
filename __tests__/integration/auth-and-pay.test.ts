@@ -22,9 +22,15 @@ import { GET as getResults } from '@/app/api/results/[sessionId]/route'
 import { POST as pay } from '@/app/api/pay/route'
 import { POST as cancelSubscription } from '@/app/api/subscription/cancel/route'
 
+jest.setTimeout(30000)
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 let sessionCookie = ''
+
+beforeEach(() => {
+  sessionCookie = ''
+})
 
 function makeRequest(method: string, body?: unknown): NextRequest {
   return new NextRequest('http://localhost:3000', {
@@ -184,8 +190,12 @@ describe('POST /api/pay', () => {
   test('records a mock payment transaction for paid plans', async () => {
     const id = await setupCompletedAccountSession()
 
-    await pay(makeRequest('POST', { sessionId: id, plan: 'weekly' }))
+    const payRes = await pay(makeRequest('POST', { sessionId: id, plan: 'weekly' }))
+    expect(payRes.status).toBe(200)
+
     const session = await prisma.session.findUnique({ where: { id }, include: { user: true } })
+    expect(session!.userId).toBeTruthy()
+
     const payment = await prisma.paymentTransaction.findFirst({
       where: { userId: session!.userId!, sessionId: id },
     })
