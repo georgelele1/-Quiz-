@@ -515,14 +515,14 @@ erDiagram
 
   User {
     string id PK
-    string email UK
+    string email
     datetime createdAt
     datetime updatedAt
   }
 
   Session {
     string id PK
-    string accessTokenHash UK
+    string accessTokenHash
     datetime createdAt
     datetime updatedAt
     datetime expiresAt
@@ -550,7 +550,7 @@ erDiagram
   HealthResult {
     string id PK
     datetime createdAt
-    string sessionId FK_UK
+    string sessionId FK
     float bmi
     string bmiCategory
     int dailyCalories
@@ -580,7 +580,7 @@ erDiagram
 
   Video {
     string id PK
-    string slug UK
+    string slug
     string title
     string description
     string category
