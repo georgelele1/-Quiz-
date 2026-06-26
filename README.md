@@ -1,470 +1,450 @@
-# HealthPath -- Health Assessment System
+# HealthPath 健康评估与订阅系统
 
-A full-stack health quiz funnel with a subscription paywall, built with Next.js 14, TypeScript, Prisma, and PostgreSQL.
+HealthPath 是一个基于 Next.js 14、TypeScript、Prisma 和 PostgreSQL 的健康问卷产品。用户完成问卷后可以看到 BMI 和基础健康状态，完整训练计划、饮食宏量营养建议、体重趋势和视频内容通过试用或付费订阅解锁。
 
-![CI](https://github.com/YOUR_USERNAME/health-quiz-app/actions/workflows/ci.yml/badge.svg)
+项目包含：
 
----
-
-## Live Demo
-
-> Deploy to Vercel + Supabase (see Deployment section below), then replace this URL.
-
-**Production URL:** `https://your-app.vercel.app`
-
-**Pre-seeded demo sessions** (run `npm run db:seed` first):
-
-| Session ID | State | Endpoint |
-|---|---|---|
-| `demo-trial-active` | TRIAL (2 days left) | `GET /api/results/demo-trial-active` |
-| `demo-trial-expired` | TRIAL_EXPIRED | `GET /api/results/demo-trial-expired` |
-| `demo-paid` | ACTIVE subscriber | `GET /api/results/demo-paid` |
-
-> **Note:** Demo sessions bypass cookie auth in seed data and are for read-only API inspection only. The quiz UI always creates its own session with a full cookie.
+- 12 步健康问卷
+- BMI、BMR、TDEE、目标体重周期计算
+- 7 天个性化训练计划
+- 免费试用与付费订阅权限控制
+- mock 支付页面
+- 视频内容权限控制
+- Prisma 数据模型
+- Render PostgreSQL + Vercel 部署支持
 
 ---
 
-## Quick Start (Local)
+## 技术栈
 
-```bash
-# 1. Clone and install
-git clone https://github.com/YOUR_USERNAME/health-quiz-app
-cd health-quiz-app
+| 类型 | 技术 |
+|---|---|
+| 前端 | Next.js App Router、React、TypeScript |
+| 样式 | Tailwind CSS |
+| 后端 | Next.js Route Handlers |
+| 数据库 | PostgreSQL |
+| ORM | Prisma |
+| 部署 | Vercel |
+| 数据库托管 | Render PostgreSQL |
+| 测试 | Jest |
+
+---
+
+## 本地运行
+
+进入项目目录：
+
+```powershell
+cd "C:\Users\Georgelele\Claude\Projects\interview product\health-quiz-app"
+```
+
+安装依赖：
+
+```powershell
 npm install
+```
 
-# 2. Set up environment
-cp .env.example .env
-# Edit .env -- set DATABASE_URL to your local PostgreSQL instance
+创建 `.env` 文件，并配置数据库连接：
 
-# 3. Apply versioned database migrations
-npx prisma migrate deploy
+```env
+DATABASE_URL="你的 Render External Database URL"
+```
 
-# 4. Seed demo sessions
-npm run db:seed
+生成 Prisma Client：
 
-# 5. Start dev server
+```powershell
+npx prisma generate
+```
+
+同步数据库结构：
+
+```powershell
+npx prisma db push
+```
+
+启动开发环境：
+
+```powershell
 npm run dev
-# -> http://localhost:3000
 ```
 
-### Existing development database baseline
+打开：
 
-If your local PostgreSQL database was created before migrations were added, do
-not run the initial migration against it again. Mark the matching baseline as
-applied once, then deploy later migrations normally:
-
-```bash
-npx prisma migrate resolve --applied 20260624000000_init
-npx prisma migrate deploy
-npm run db:seed
-```
-
-The second migration creates the `Video` table. The seed adds six video
-records: two free previews and four subscriber-only lessons.
-
----
-
-## Run Tests
-
-```bash
-# Unit tests only (no DB required) -- 171 tests
-npx jest --testPathPattern="__tests__/unit"
-
-# Integration tests (requires DATABASE_URL)
-npx jest --testPathPattern="__tests__/integration" --runInBand
-
-# All tests + coverage
-npm run test:coverage
-```
-
-> **Note:** Integration tests require the Prisma client binary to match the host OS. On Windows, run `npm run db:generate` before running integration tests. On Linux CI, this is handled automatically by the workflow.
-
----
-
-## Deployment (Vercel + Supabase)
-
-### 1. Create a Supabase project
-1. Go to https://supabase.com -> New Project
-2. Copy the **Connection Pooling** string -> `DATABASE_URL`
-
-### 2. Deploy to Vercel
-```bash
-npm install -g vercel
-vercel login
-vercel --prod
-# Add environment variable when prompted:
-#   DATABASE_URL=<your-supabase-pooling-url>
-```
-
-### 3. Apply migrations + seed
-```bash
-DATABASE_URL="<production-url>" npx prisma migrate deploy
-DATABASE_URL="<production-url>" npm run db:seed
+```text
+http://localhost:3000
 ```
 
 ---
 
-## API Reference
+## 常用命令
 
-All endpoints are session-scoped. Session identity is established via an HttpOnly cookie (`healthpath_session_<id>`) set on session creation. The cookie must be present for all subsequent requests -- the quiz frontend handles this automatically.
-
-### POST `/api/sessions`
-Create a new quiz session. Returns an HttpOnly auth cookie.
-
-**Body (optional):**
-```json
-{ "clientId": "uuid-v4-generated-by-client" }
+```powershell
+npm run dev          # 启动本地开发服务器
+npm run build        # 构建生产版本
+npm run start        # 启动生产构建
+npm run test         # 运行测试
+npm run db:generate  # 生成 Prisma Client
+npm run db:push      # 同步 Prisma schema 到数据库
+npm run db:seed      # 写入 demo 数据
 ```
 
-**Response 201:**
+如果本地提示找不到 `node`、`npm` 或 `npx`，需要先安装 Node.js，或者确认 Node.js 已加入系统 PATH。
+
+---
+
+## 环境变量
+
+项目至少需要：
+
+```env
+DATABASE_URL="postgresql://..."
+```
+
+如果部署到 Vercel，需要在 Vercel 后台添加同名环境变量：
+
+```text
+Settings -> Environment Variables -> DATABASE_URL
+```
+
+使用 Render PostgreSQL 时，请使用 Render 提供的 `External Database URL`，不要使用 `Internal Database URL`。
+
+---
+
+## Vercel 部署
+
+### 1. 推送代码
+
+```powershell
+git push
+```
+
+如果 Vercel 已经连接 GitHub 仓库，push 后会自动触发部署。
+
+### 2. 配置环境变量
+
+在 Vercel 项目后台添加：
+
+```env
+DATABASE_URL="你的 Render PostgreSQL External Database URL"
+```
+
+环境选择：
+
+```text
+Production and Preview
+```
+
+### 3. 配置构建命令
+
+建议 Vercel 的 Build Command 使用：
+
+```text
+npx prisma generate && npm run build
+```
+
+因为项目使用 Prisma，部署时必须先生成 Prisma Client。
+
+### 4. 同步数据库
+
+如果 Prisma schema 有变化，本地执行：
+
+```powershell
+npx prisma db push
+```
+
+然后再重新部署 Vercel。
+
+---
+
+## 问卷流程
+
+当前问卷共有 12 步：
+
+| 步骤 | 内容 | 主要字段 |
+|---|---|---|
+| 1 | 性别 | `gender` |
+| 2 | 年龄 | `age` |
+| 3 | 主要目标 | `goal` |
+| 4 | 重点改善区域 | `focusAreas` |
+| 5 | 喜欢的运动类型 | `activityTypes` |
+| 6 | 身高体重 | `heightCm`, `weightKg` |
+| 7 | 目标体重 | `targetWeightKg` |
+| 8 | 活动水平 | `activityLevel` |
+| 9 | 饮食偏好 | `dietPreference` |
+| 10 | 目标达成时间 | `targetDate`, `targetTimelineWeeks` |
+| 11 | 目标动力 | `motivation`, `motivationDetail` |
+| 12 | 邮箱 | `email` |
+
+用户完成测试后，系统会先展示 BMI 和基础状态，不直接展示完整训练计划。用户需要进入订阅/支付页面选择方案后，才能继续查看后续内容。
+
+---
+
+## 订阅与权限规则
+
+当前权限逻辑：
+
+| 用户状态 | 可访问内容 |
+|---|---|
+| 未订阅用户 | 只能查看 BMI、基础健康状态和付费提示 |
+| 免费试用用户 | 可查看 2 天训练计划预览 |
+| 付费订阅用户 | 可查看完整结果、7 天训练计划、完整视频内容 |
+| 取消订阅用户 | 到期前仍可访问，到期后恢复限制 |
+| 过期用户 | 只能看到限制内容和续费提示 |
+
+订阅方案包括：
+
+- Free trial
+- Weekly
+- Monthly
+- Yearly
+
+免费试用不需要真实付款确认；付费方案会通过 mock checkout 页面模拟支付成功。
+
+---
+
+## Mock 支付
+
+项目内置 mock 支付流程，用于演示订阅解锁逻辑。
+
+接口：
+
+```http
+POST /api/pay
+```
+
+示例请求：
+
 ```json
 {
-  "id": "cm...",
-  "currentStep": 0,
-  "version": 0,
-  "isCompleted": false,
-  "quizData": {},
-  "subscription": null
+  "sessionId": "session_id",
+  "plan": "monthly"
 }
 ```
 
-Sending the same `clientId` re-issues the cookie and returns the existing session with `200`.
+支持的 plan：
+
+```text
+trial
+weekly
+monthly
+yearly
+```
+
+注意：当前支付不是 Stripe 或真实支付，只用于项目演示。如果上线真实产品，需要接入 Stripe Checkout 和 webhook 校验。
 
 ---
 
-### GET `/api/sessions/:id`
-Fetch session progress for page-refresh recovery. Requires cookie.
+## 视频权限
 
-**Response 200:**
+项目包含视频数据结构。视频内容分为：
+
+- 免费预览视频
+- 订阅用户专属视频
+
+免费用户只能访问部分公开视频；订阅用户可以访问完整视频库。
+
+接口：
+
+```http
+GET /api/videos/:sessionId
+```
+
+---
+
+## API 简介
+
+### 创建问卷会话
+
+```http
+POST /api/sessions
+```
+
+创建 session，并写入 HttpOnly cookie。
+
+### 获取会话
+
+```http
+GET /api/sessions/:id
+```
+
+用于刷新页面后恢复问卷进度。
+
+### 保存单步问卷
+
+```http
+PUT /api/sessions/:id/steps
+```
+
+示例：
+
 ```json
 {
-  "id": "cm...",
-  "currentStep": 3,
-  "version": 3,
-  "isCompleted": false,
-  "quizData": { "age": 34, "gender": "female", "goal": "lose_weight" },
-  "subscription": null
+  "step": 6,
+  "data": {
+    "heightCm": 175,
+    "weightKg": 80
+  }
 }
 ```
 
----
+### 计算结果
 
-### PUT `/api/sessions/:id/steps`
-Save a single quiz step. Requires cookie. Unknown fields for the given step are rejected with 400.
-
-**Body:**
-```json
-{ "step": 6, "data": { "heightCm": 165, "weightKg": 75 } }
+```http
+POST /api/sessions/:id/calculate
 ```
 
-**Step schema:**
+完成问卷后生成健康评估结果。
 
-| Step | Field(s) | Valid values |
-|------|----------|-------------|
-| 1 | `gender` | `male`, `female` |
-| 2 | `age` | Integer 16-100 |
-| 3 | `goal` | `lose_weight`, `tone_up`, `build_strength`, `improve_health` |
-| 4 | `focusAreas` | Array of 1+: depends on goal (see below) |
-| 5 | `activityTypes` | Array of 1+: `home_workouts`, `gym`, `running_walking`, `yoga_pilates`, `hiit_cardio`, `swimming`, `cycling`, `sports` |
-| 6 | `heightCm`, `weightKg` | 100-250, 30-300 |
-| 7 | `targetWeightKg` | 30-300 |
-| 8 | `activityLevel` | `sedentary`, `light`, `moderate`, `active` |
-| 9 | `dietPreference` | `no_preference`, `vegetarian`, `vegan`, `keto`, `paleo` |
-| 10 | `email` | Valid email (optional -- links session to a User + starts trial) |
+### 获取结果
 
-**focusAreas values by goal:**
-- `lose_weight`: `belly_fat`, `thighs_hips`, `arms`, `full_body_slim`
-- `tone_up`: `core_abs`, `arms_shoulders`, `legs_glutes`, `full_body_tone`
-- `build_strength`: `chest_back`, `biceps_triceps`, `legs_power`, `core_strength`
-- `improve_health`: `flexibility`, `endurance`, `posture`, `stress_relief`
-
-**Response 200:**
-```json
-{ "id": "cm...", "currentStep": 6, "version": 6, "savedAt": "2024-..." }
+```http
+GET /api/results/:sessionId
 ```
 
-Step 6 additionally returns `medicalWarning` (string or null) if BMI is outside 15-60.
+根据用户订阅状态返回限制版或完整版结果。
+
+### 获取训练计划
+
+```http
+GET /api/plan/:sessionId
+```
+
+免费试用返回 2 天预览，付费用户返回完整 7 天计划。
+
+### 主动取消订阅
+
+```http
+POST /api/subscription/cancel
+```
+
+用户可以主动取消订阅。
 
 ---
 
-### POST `/api/sessions/:id/calculate`
-Run the health assessment after all 10 steps are complete. Idempotent. Requires cookie.
+## 数据库结构
 
-**Response 201:**
-```json
-{ "sessionId": "cm...", "resultId": "cm..." }
-```
+核心数据表：
 
----
+| 表 | 作用 |
+|---|---|
+| `Session` | 保存问卷会话、当前步骤、问卷答案、访问 token |
+| `User` | 保存用户邮箱 |
+| `Subscription` | 保存订阅状态、方案、试用时间、过期时间 |
+| `HealthResult` | 保存 BMI、热量、宏量营养、目标日期、体重趋势 |
+| `Video` | 保存视频内容和访问权限 |
 
-### GET `/api/results/:sessionId`
-Returns health results. Access level depends on subscription status. Requires cookie.
+权限判断主要依赖：
 
-**Limited (no account or expired):**
-```json
-{
-  "access": "limited",
-  "reason": "no_account",
-  "sessionId": "cm...",
-  "bmi": 28.7,
-  "bmiCategory": "Overweight",
-  "dailyCalories": 1650,
-  "message": "Enter your email to unlock your full plan and start your free 3-day trial."
-}
-```
+- `Subscription.status`
+- `Subscription.plan`
+- `Subscription.trialEndsAt`
+- `Subscription.expiresAt`
 
-**Full (ACTIVE subscription only):**
-```json
-{
-  "access": "full",
-  "accessReason": "subscribed",
-  "sessionId": "cm...",
-  "goal": "lose_weight",
-  "bmi": 28.7,
-  "bmiCategory": "Overweight",
-  "dailyCalories": 1650,
-  "proteinGrams": 120,
-  "carbGrams": 178,
-  "fatGrams": 51,
-  "weeklyWeightLossForecast": 0.46,
-  "weeksToGoal": 35,
-  "targetDate": "2025-06-01T00:00:00.000Z",
-  "weeklyProjection": [
-    { "week": 0, "weightKg": 78 },
-    { "week": 1, "weightKg": 77.5 }
-  ]
-}
+常见状态：
+
+```text
+TRIAL
+TRIAL_EXPIRED
+ACTIVE
+EXPIRED
+CANCELLED
 ```
 
 ---
 
-### GET `/api/plan/:sessionId`
-Returns a 7-day personalised workout plan. Only an active paid subscription
-receives all seven days; free and trial users receive the first two days. Requires cookie.
+## 健康计算逻辑
 
-**Limited:** first 2 days only.
-**Full:** complete 7-day schedule with exercises, sets, reps, rest, and intensity.
+### BMI
+
+```text
+BMI = weightKg / (heightM * heightM)
+```
+
+### BMR
+
+使用 Mifflin-St Jeor 公式：
+
+```text
+男性：BMR = 10 * 体重kg + 6.25 * 身高cm - 5 * 年龄 + 5
+女性：BMR = 10 * 体重kg + 6.25 * 身高cm - 5 * 年龄 - 161
+```
+
+### TDEE
+
+```text
+TDEE = BMR * 活动系数
+```
+
+### 目标热量
+
+| 目标 | 处理方式 |
+|---|---|
+| 减重 | 每日热量赤字 |
+| 塑形 | 小幅赤字或维持 |
+| 增肌 | 小幅热量盈余 |
+| 改善健康 | 维持热量 |
+
+系统会根据当前体重、目标体重和目标周期生成体重趋势预测。
 
 ---
 
-### POST `/api/pay`
-Simulate a payment confirmation -- activates subscription. Requires cookie.
+## 测试
 
-**Body:**
-```json
-{ "sessionId": "cm...", "plan": "yearly" }
-```
-`plan` defaults to `"monthly"`. Accepted: `"monthly"` (+1 month), `"yearly"` (+1 year).
+运行单元测试：
 
-**Response 200:**
-```json
-{
-  "success": true,
-  "sessionId": "cm...",
-  "status": "ACTIVE",
-  "plan": "yearly",
-  "activatedAt": "2024-03-15T10:00:00.000Z",
-  "expiresAt": "2025-03-15T10:00:00.000Z"
-}
+```powershell
+npm run test
 ```
 
-Already-active (not yet expired) returns `"alreadyActive": true`. Expired ACTIVE subscriptions are renewed normally.
+只运行核心单元测试：
+
+```powershell
+node .\node_modules\jest\bin\jest.js validation.test.ts health-calculator.test.ts --runInBand
+```
+
+当前核心测试覆盖：
+
+- 问卷字段校验
+- BMI/BMR/TDEE 计算
+- 目标体重周期计算
+- 宏量营养计算
+- 免费/付费权限逻辑
+
+集成测试需要可连接的 PostgreSQL 数据库。如果本地连接 Render PostgreSQL 失败，需要先确认 Render 数据库状态、防火墙和连接 URL。
 
 ---
 
-## API Replay (curl)
+## 当前限制
 
-All requests must carry the session cookie. Use `-c`/`-b` to persist it:
+| 限制 | 说明 |
+|---|---|
+| 支付是 mock | 目前没有接入真实 Stripe |
+| 邮箱未验证 | 当前只是保存邮箱，没有邮件验证码 |
+| 视频是数据权限演示 | 视频资源可以继续扩展成真实 CDN 链接 |
+| 数据库依赖外部服务 | 本地集成测试需要 PostgreSQL 可访问 |
+| 医疗建议有限 | 当前仅用于健康计划演示，不替代医生建议 |
 
-```bash
-BASE="http://localhost:3000"
-JAR=/tmp/hp-cookies.txt
+---
 
-# 1. Create session (sets HttpOnly auth cookie)
-SESSION=$(curl -sc $JAR -X POST $BASE/api/sessions \
-  -H "Content-Type: application/json" \
-  -d '{}' | jq -r '.id')
-echo "Session: $SESSION"
+## 提交与部署流程
 
-# 2. Complete all 10 steps
-curl -sb $JAR -X PUT $BASE/api/sessions/$SESSION/steps \
-  -H "Content-Type: application/json" \
-  -d '{"step":1,"data":{"gender":"female"}}'
+日常开发建议：
 
-curl -sb $JAR -X PUT $BASE/api/sessions/$SESSION/steps \
-  -H "Content-Type: application/json" \
-  -d '{"step":2,"data":{"age":34}}'
+```powershell
+git status
+git add -A
+git commit -m "你的提交说明"
+git push
+```
 
-curl -sb $JAR -X PUT $BASE/api/sessions/$SESSION/steps \
-  -H "Content-Type: application/json" \
-  -d '{"step":3,"data":{"goal":"lose_weight"}}'
+push 后 Vercel 会自动部署。如果没有自动部署，可以在 Vercel 后台：
 
-curl -sb $JAR -X PUT $BASE/api/sessions/$SESSION/steps \
-  -H "Content-Type: application/json" \
-  -d '{"step":4,"data":{"focusAreas":["belly_fat","thighs_hips"]}}'
-
-curl -sb $JAR -X PUT $BASE/api/sessions/$SESSION/steps \
-  -H "Content-Type: application/json" \
-  -d '{"step":5,"data":{"activityTypes":["gym","running_walking"]}}'
-
-curl -sb $JAR -X PUT $BASE/api/sessions/$SESSION/steps \
-  -H "Content-Type: application/json" \
-  -d '{"step":6,"data":{"heightCm":165,"weightKg":78}}'
-
-curl -sb $JAR -X PUT $BASE/api/sessions/$SESSION/steps \
-  -H "Content-Type: application/json" \
-  -d '{"step":7,"data":{"targetWeightKg":62}}'
-
-curl -sb $JAR -X PUT $BASE/api/sessions/$SESSION/steps \
-  -H "Content-Type: application/json" \
-  -d '{"step":8,"data":{"activityLevel":"moderate"}}'
-
-curl -sb $JAR -X PUT $BASE/api/sessions/$SESSION/steps \
-  -H "Content-Type: application/json" \
-  -d '{"step":9,"data":{"dietPreference":"no_preference"}}'
-
-curl -sb $JAR -X PUT $BASE/api/sessions/$SESSION/steps \
-  -H "Content-Type: application/json" \
-  -d '{"step":10,"data":{"email":"demo@example.com"}}'
-
-# 3. Calculate results
-curl -sb $JAR -X POST $BASE/api/sessions/$SESSION/calculate | jq .
-
-# 4. View limited results (trial started by email step above)
-echo "=== TRIAL RESULTS ==="
-curl -sb $JAR $BASE/api/results/$SESSION | jq .
-
-# 5. Activate paid subscription
-curl -sb $JAR -X POST $BASE/api/pay \
-  -H "Content-Type: application/json" \
-  -d "{\"sessionId\":\"$SESSION\",\"plan\":\"yearly\"}" | jq .
-
-# 6. View full results
-echo "=== PAID RESULTS ==="
-curl -sb $JAR $BASE/api/results/$SESSION | jq .
+```text
+Deployments -> Redeploy
 ```
 
 ---
 
-## Database Schema
+## 免责声明
 
-```
-+--------------------------------------------------+
-|                     Session                      |
-|  id              String (CUID)   PK              |
-|  accessTokenHash String?         (cookie auth)   |
-|  currentStep     Int             0-10            |
-|  version         Int             (optimistic lock)|
-|  isCompleted     Boolean                         |
-|  quizData        Json            (all answers)   |
-|  expiresAt       DateTime?       (data retention)|
-|  userId          String?         FK -> User      |
-+----------+-------------------------------+--------+
-           |                               |
-           | 1:1                           | 1:1
-           v                               v
-+---------------------+     +--------------------------+
-|    HealthResult     |     |          User            |
-|  id          String |     |  id     String           |
-|  sessionId   String |     |  email  String (unique)  |
-|  bmi         Float  |     +------------+-------------+
-|  bmiCategory String |                  |
-|  dailyCalories Int  |                  | 1:1
-|  proteinGrams Int   |                  v
-|  carbGrams   Int    |     +--------------------------+
-|  fatGrams    Int    |     |       Subscription       |
-|  weeklyProjection   |     |  status  Enum            |
-|    Json (array)     |     |    TRIAL                 |
-|  weeksToGoal Int    |     |    TRIAL_EXPIRED         |
-|  targetDate DateTime|     |    ACTIVE                |
-+---------------------+     |    EXPIRED               |
-                            |    CANCELLED             |
-                            |  plan        String?     |
-                            |  trialEndsAt DateTime    |
-                            |  activatedAt DateTime?   |
-                            |  expiresAt   DateTime?   |
-                            +--------------------------+
-```
-
-**Design decisions:**
-- `quizData` as a JSON blob: new question steps can be added without schema migrations. Validated at the API layer per step.
-- Separate `HealthResult` table: avoids loading the 52-point projection array on every auth check.
-- `accessTokenHash` on Session: stores SHA-256 of a random token delivered via HttpOnly cookie. Session IDs alone are not sufficient for write access.
-- `version` on Session: used for optimistic concurrency control on step saves -- concurrent updates return 409 rather than silently losing data.
-- `expiresAt` on Session: scheduled for cleanup 2 days after trial expiry. The `/api/cleanup` route deletes sessions past this date.
-
----
-
-## Health Assessment Algorithm
-
-**BMR:** Mifflin-St Jeor equation (most validated for general-population cohort per ACSM).
-```
-Men:   BMR = (10 x weight_kg) + (6.25 x height_cm) - (5 x age) + 5
-Women: BMR = (10 x weight_kg) + (6.25 x height_cm) - (5 x age) - 161
-```
-
-**TDEE:** BMR x activity multiplier (sedentary 1.2 -> active 1.725).
-
-**Goal-based calorie target:**
-
-| Goal | Adjustment | Timeline |
-|------|-----------|---------|
-| Lose weight | -500 kcal/day (deficit) | Weeks to target weight via deficit |
-| Tone up (losing) | -200 kcal/day | Weeks to target weight via small deficit |
-| Tone up (maintaining) | 0 kcal/day | 12-week recomposition programme |
-| Build strength (gaining) | +250 kcal/day | Weeks to target weight via surplus |
-| Build strength (recomp) | +250 kcal/day | 16-week recomposition programme |
-| Improve health | 0 kcal/day | 12-week maintenance programme |
-
-**Calorie floor:** 1500 kcal (male) / 1200 kcal (female).
-**Timeline cap:** 104 weeks maximum to prevent runaway forecasts.
-**Macros:** Protein 1.6 g/kg bodyweight, Fat 28% of calories, Carbs = remainder.
-
----
-
-## Test Coverage
-
-```
-Test Suites: 2 passed (unit)
-Tests:       171 passed
-```
-
-**Unit tests (`__tests__/unit/`)**
-
-- `health-calculator.test.ts` -- BMI, BMR (Mifflin-St Jeor), TDEE multipliers, per-goal calorie targets, macro ratios, timeline per goal, projection arrays, input validation including NaN/Infinity/cross-field checks
-- `validation.test.ts` -- all 10 step schemas, enum guards, array validation (focusAreas/activityTypes), SQL injection strings rejected, isQuizComplete, mergeQuizData
-
-**Integration tests (`__tests__/integration/`)** -- require PostgreSQL
-
-- `sessions.test.ts` -- session creation + idempotency, step persistence, version-lock conflict (409), out-of-order saves, calculate idempotency, 422 on incomplete data, 404 on unknown sessions
-- `auth-and-pay.test.ts` -- free vs paid result shapes, payment activation, idempotent double-pay, trial-then-pay E2E flow
-
----
-
-## Known Gaps and Limits
-
-| Gap | Notes |
-|-----|-------|
-| No real payment processor | `/api/pay` is a stub. Production would use Stripe webhooks with signature verification. |
-| `/api/cleanup` is unauthenticated | Requires `Authorization: Bearer <CLEANUP_SECRET>` in production. |
-| `POST /api/sessions` (clientId path) returns quizData | The idempotent path re-issues a cookie but should not return quizData in the response body. |
-| Token is SHA-256, not HMAC | `hashSessionAccessToken` uses plain SHA-256. True signed tokens would use `createHmac('sha256', process.env.TOKEN_SECRET)`. |
-| Email not verified before account linking | Step 10 links any email to the session without ownership verification. |
-| Integration tests fail on Windows host | Prisma binary mismatch between Windows and the Linux test sandbox. Unit tests (171) run cleanly on all platforms. |
-| No E2E browser tests | Playwright coverage would add confidence on quiz navigation and paywall rendering. |
-
----
-
-## AI Usage Retrospective
-
-**Database modeling:** Asked Claude to compare normalised vs denormalised approaches for storing results. Chose a separate `HealthResult` table because the 52-point projection array is always read whole and never queried individually -- JSON column avoids 52 JOIN rows per request.
-
-**Health algorithm:** Used Claude to compare Mifflin-St Jeor vs Harris-Benedict vs Katch-McArdle. Mifflin-St Jeor is the most validated for the non-athlete general population this product targets.
-
-**Goal timeline semantics:** Claude's initial implementation used a single weight-loss formula for all four goals, producing "999 weeks to goal" for maintenance and "0 weeks" for strength (gaining). Fixed by branching on goal: deficit path for lose/tone, surplus-gain path for strength building, and flat 12/16-week programme for maintenance/recomposition.
-
-**Security architecture:** User added HttpOnly cookie auth. Claude audited the implementation and identified 11 issues. Critical ones fixed: idempotent session path now re-issues cookie, ACTIVE subscription expiry now checked on every protected request, plan route now expires trials the same way the results route does.
-
-**A suggestion I rejected:** Claude proposed storing `weeklyProjection` in a separate `WeightProjectionPoint` table. Rejected because: always read as a complete array, never filtered at DB level, and would require 52 JOIN rows to reconstruct a single field. JSON column is the right trade-off.
-
-**A time AI was wrong:** The `/api/pay` idempotency check originally used `status === 'ACTIVE'` without checking `expiresAt`. An expired paid subscription returned `alreadyActive: true`, blocking renewal. Fixed to also verify `expiresAt > now`.
+HealthPath 当前是笔试/演示项目。健康评估、训练建议和饮食建议仅供参考，不构成医疗诊断或治疗建议。如果用户存在疾病、受伤、怀孕、严重肥胖或其他健康风险，应咨询专业医生或营养师。
